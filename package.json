@@ -1,0 +1,23 @@
+{
+  "name": "reactant",
+  "version": "0.0.1",
+  "description": "simple push-pull reactive programming in javascript",
+  "main": "dist/reactant.cjs.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamesvsnowden/reactant"
+  },
+  "keywords": [
+    "reactive",
+    "frp"
+  ],
+  "author": "James Snowden <jamesvsnowden@me.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jamesvsnowden/reactant/issues"
+  },
+  "homepage": "https://github.com/jamesvsnowden/reactant"
+}
