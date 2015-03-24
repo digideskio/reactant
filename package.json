@@ -19,5 +19,8 @@
   "bugs": {
     "url": "https://github.com/jamesvsnowden/reactant/issues"
   },
-  "homepage": "https://github.com/jamesvsnowden/reactant"
+  "homepage": "https://github.com/jamesvsnowden/reactant",
+  "devDependencies": {
+    "babel": "^4.7.16"
+  }
 }
