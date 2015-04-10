@@ -1,41 +1,36 @@
-define(["exports"], function (exports) {
-	"use strict";
+define(['exports', 'module'], function (exports, module) {
+	'use strict';
 
-	var _get = function get(object, property, receiver) { var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc && desc.writable) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+	var _get = function get(object, property, receiver) { var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 
-	var _inherits = function (subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) subClass.__proto__ = superClass; };
+	var _inherits = function (subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) subClass.__proto__ = superClass; };
 
-	var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
+	var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } };
 
-	var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } };
+	var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ('value' in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
 
 	//
 	//
 	//
 
-	exports["default"] = reactant;
-	exports.copy = copy;
-	exports.lift = lift;
-	exports.bind = bind;
-	Object.defineProperty(exports, "__esModule", {
-		value: true
-	});
-
-	"use strict";
 	function reactant(value) {
 		return isSignal(value) ? value : isFunction(value) ? lift(value) : new Value(value);
 	}
 
+	function bind(input, fn) {
+		return isArray(input) ? lift(fn).apply(null, input) : lift(fn)(input);
+	}
+
 	function copy(value) {
 		if (!isSignal(value)) {
-			throw new Error("reactant.copy \"value\" argument must be an instance of reactant.Signal");
+			throw new Error('reactant.copy "value" argument must be an instance of reactant.Signal');
 		}
 		return new Clone(value);
 	}
 
 	function lift(fn) {
 		if (!isFunction(fn)) {
-			throw new Error("reactant.lift \"fn\" argument must be of type: \"function\"");
+			throw new Error('reactant.lift "fn" argument must be of type: "function"');
 		}
 		if (fn.isLifted) {
 			return fn;
@@ -72,9 +67,15 @@ define(["exports"], function (exports) {
 		}
 	}
 
-	function bind(input, fn) {
-		return isArray(input) ? lift(fn).apply(null, input) : lift(fn)(input);
-	}
+	//
+	//
+	//
+
+	var keys = Object.keys;
+
+	var def = Object.defineProperty;
+
+	var slice = Array.prototype.slice;
 
 	//
 	//
@@ -82,8 +83,16 @@ define(["exports"], function (exports) {
 
 	var isArray = Array.isArray;
 
+	function isCallable(x) {
+		return x !== undefined && x !== null && typeof x.call === 'function';
+	}
+
 	function isFunction(x) {
-		return typeof x === "function";
+		return typeof x === 'function';
+	}
+
+	function isObject(x) {
+		return typeof x === 'object' && x !== null;
 	}
 
 	function isSignal(x) {
@@ -126,55 +135,57 @@ define(["exports"], function (exports) {
 			this._multi = false;
 		}
 
-		_createClass(Signal, {
-			subscribe: {
-				value: function subscribe(target) {
-					if (!isVertex(target)) {
-						throw new Error("reactant.Signal \"target\" argument must be an instance of reactant.Vertex");
+		_createClass(Signal, [{
+			key: 'subscribe',
+			value: function subscribe(subscriber) {
+				if (!isCallable(subscriber)) {
+					throw new Error('reactant.Signal "subscriber" must be callable');
+				}
+				if (this._multi) {
+					if (this._chain.indexOf(subscriber) === -1) {
+						this._chain.push(subscriber);
 					}
-					if (this._multi) {
-						if (this._chain.indexOf(target) === -1) {
-							this._chain.push(target);
-						}
-					} else if (this._chain !== target) {
-						if (this._chain === null) {
-							this._chain = target;
-						} else {
-							this._chain = [this._chain, target];
-							this._multi = true;
-						}
+				} else if (this._chain !== subscriber) {
+					if (this._chain === null) {
+						this._chain = subscriber;
+					} else {
+						this._chain = [this._chain, subscriber];
+						this._multi = true;
 					}
 				}
-			},
-			unsubscribe: {
-				value: function unsubscribe(target) {
-					if (this._multi) {
-						var index = this._chain.indexOf(target);
-						if (index !== -1) {
-							if (this._chain.length === 2) {
-								this._chain = this._chain[index === 0 ? 1 : 0];
-								this._multi = false;
-							} else {
-								this._chain.splice(index, 1);
-							}
-						}
-					} else if (this._chain === target) {
-						this._chain = null;
-					}
-				}
-			},
-			propagate: {
-				value: function propagate() {
-					if (this._multi) {
-						for (var i = 0; i < this._chain.length; i++) {
-							this._chain[i].invalidate();
-						}
-					} else if (this._chain !== null) {
-						this._chain.invalidate();
-					}
-				}
+				return this;
 			}
-		});
+		}, {
+			key: 'unsubscribe',
+			value: function unsubscribe(subscriber) {
+				if (this._multi) {
+					var i = this._chain.indexOf(subscriber);
+					if (i !== -1) {
+						if (this._chain.length === 2) {
+							this._chain = this._chain[i === 0 ? 1 : 0];
+							this._multi = false;
+						} else {
+							this._chain.splice(i, 1);
+						}
+					}
+				} else if (this._chain === subscriber) {
+					this._chain = null;
+				}
+				return this;
+			}
+		}, {
+			key: 'propagate',
+			value: function propagate() {
+				if (this._multi) {
+					for (var i = 0; i < this._chain.length; i++) {
+						this._chain[i].call(this);
+					}
+				} else if (this._chain !== null) {
+					this._chain.call(this);
+				}
+				return this;
+			}
+		}]);
 
 		return Signal;
 	})();
@@ -183,32 +194,37 @@ define(["exports"], function (exports) {
 		function Vertex() {
 			_classCallCheck(this, Vertex);
 
-			_get(Object.getPrototypeOf(Vertex.prototype), "constructor", this).call(this);
+			_get(Object.getPrototypeOf(Vertex.prototype), 'constructor', this).call(this);
 			this._valid = true;
 		}
 
 		_inherits(Vertex, _Signal);
 
-		_createClass(Vertex, {
-			invalidate: {
-				value: function invalidate() {
-					if (this._valid === false) {
-						this._valid = true;
-						this.propagate();
-					}
-				}
-			},
-			revalidate: {
-				value: function revalidate() {
-					this._valid = true;
-				}
-			},
-			isValid: {
-				value: function isValid() {
-					return this._valid;
+		_createClass(Vertex, [{
+			key: 'invalidate',
+			value: function invalidate() {
+				this.call();
+				return this;
+			}
+		}, {
+			key: 'call',
+			value: function call() {
+				if (this._valid) {
+					this._valid = false;
+					this.propagate();
 				}
 			}
-		});
+		}, {
+			key: 'revalidate',
+			value: function revalidate() {
+				this._valid = true;
+			}
+		}, {
+			key: 'isValid',
+			get: function () {
+				return this._valid;
+			}
+		}]);
 
 		return Vertex;
 	})(Signal);
@@ -221,49 +237,51 @@ define(["exports"], function (exports) {
 		function Value(value) {
 			_classCallCheck(this, Value);
 
-			_get(Object.getPrototypeOf(Value.prototype), "constructor", this).call(this);
+			_get(Object.getPrototypeOf(Value.prototype), 'constructor', this).call(this);
 			this._value = value;
 		}
 
 		_inherits(Value, _Signal2);
 
-		_createClass(Value, {
-			valueOf: {
-				value: function valueOf() {
-					return this._value;
-				}
-			},
-			set: {
-				value: function set(value) {
-					if (this._value !== value) {
-						this._value = value;
-						this.propagate();
-					}
-				}
+		_createClass(Value, [{
+			key: 'valueOf',
+			value: function valueOf() {
+				return this._value;
 			}
-		});
+		}, {
+			key: 'set',
+			value: function set(value) {
+				if (this._value !== value) {
+					this._value = value;
+					this.propagate();
+				}
+				return this;
+			}
+		}]);
 
 		return Value;
 	})(Signal);
 
-	var Input = (function (_Vertex) {
+	var Input = (function (_Signal3) {
 		function Input(input) {
 			_classCallCheck(this, Input);
 
-			_get(Object.getPrototypeOf(Input.prototype), "constructor", this).call(this);
-			this.valueOf = input;
+			_get(Object.getPrototypeOf(Input.prototype), 'constructor', this).call(this);
+			this.valueOf = isFunction(input) ? input : function () {
+				return input;
+			};
 		}
 
-		_inherits(Input, _Vertex);
+		_inherits(Input, _Signal3);
 
 		return Input;
-	})(Vertex);
+	})(Signal);
 
-	var Clone = (function (_Vertex2) {
+	var Clone = (function (_Vertex) {
 		function Clone(input) {
 			_classCallCheck(this, Clone);
 
-			_get(Object.getPrototypeOf(Clone.prototype), "constructor", this).call(this);
+			_get(Object.getPrototypeOf(Clone.prototype), 'constructor', this).call(this);
 			this._input = toValueObject(input);
 			this._value = this._input.valueOf();
 			if (isSignal(input)) {
@@ -271,28 +289,27 @@ define(["exports"], function (exports) {
 			}
 		}
 
-		_inherits(Clone, _Vertex2);
+		_inherits(Clone, _Vertex);
 
-		_createClass(Clone, {
-			valueOf: {
-				value: function valueOf() {
-					if (!this.isValid) {
-						this._value = this._input.valueOf();
-						this.revalidate();
-					}
-					return this._value;
+		_createClass(Clone, [{
+			key: 'valueOf',
+			value: function valueOf() {
+				if (!this.isValid) {
+					this._value = this._input.valueOf();
+					this.revalidate();
 				}
+				return this._value;
 			}
-		});
+		}]);
 
 		return Clone;
 	})(Vertex);
 
-	var State = (function (_Vertex3) {
+	var State = (function (_Vertex2) {
 		function State(input, xform) {
 			_classCallCheck(this, State);
 
-			_get(Object.getPrototypeOf(State.prototype), "constructor", this).call(this);
+			_get(Object.getPrototypeOf(State.prototype), 'constructor', this).call(this);
 			this._input = toValueObject(input);
 			this._xform = xform;
 			this._value = xform(this._input.valueOf());
@@ -301,28 +318,27 @@ define(["exports"], function (exports) {
 			}
 		}
 
-		_inherits(State, _Vertex3);
+		_inherits(State, _Vertex2);
 
-		_createClass(State, {
-			valueOf: {
-				value: function valueOf() {
-					if (!this.isValid) {
-						this._value = this._xform(this._input.valueOf());
-						this.revalidate();
-					}
-					return this._value;
+		_createClass(State, [{
+			key: 'valueOf',
+			value: function valueOf() {
+				if (!this.isValid) {
+					this._value = this._xform(this._input.valueOf());
+					this.revalidate();
 				}
+				return this._value;
 			}
-		});
+		}]);
 
 		return State;
 	})(Vertex);
 
-	var Nexus = exports.Nexus = (function (_Vertex4) {
+	var Nexus = (function (_Vertex3) {
 		function Nexus(input, apply, xform) {
 			_classCallCheck(this, Nexus);
 
-			_get(Object.getPrototypeOf(Nexus.prototype), "constructor", this).call(this);
+			_get(Object.getPrototypeOf(Nexus.prototype), 'constructor', this).call(this);
 			this._input = input;
 			this._apply = apply;
 			this._xform = xform;
@@ -334,22 +350,74 @@ define(["exports"], function (exports) {
 			}
 		}
 
-		_inherits(Nexus, _Vertex4);
+		_inherits(Nexus, _Vertex3);
 
-		_createClass(Nexus, {
-			valueOf: {
-				value: function valueOf() {
-					if (!this.isValid) {
-						this._value = this._apply(this._xform, this._input);
-						this.revalidate();
-					}
-					return this._value;
+		_createClass(Nexus, [{
+			key: 'valueOf',
+			value: function valueOf() {
+				if (!this.isValid) {
+					this._value = this._apply(this._xform, this._input);
+					this.revalidate();
 				}
+				return this._value;
 			}
-		});
+		}]);
 
 		return Nexus;
 	})(Vertex);
+
+	var Model = (function (_Vertex4) {
+		function Model(input, names) {
+			_classCallCheck(this, Model);
+
+			if (!isObject(input)) {
+				throw new Error('reactant.Model "input" must be an object');
+			}
+			if (!isArray(names)) {
+				names = keys(input);
+			}
+			_get(Object.getPrototypeOf(Model.prototype), 'constructor', this).call(this);
+			this._names = names;
+			for (var i = 0; i < names.length; i++) {
+				var k = names[i],
+				    v = input[k];
+				this[name] = isFunction(v) ? v : (isSignal(v) ? v : isObject(v) ? new Model(v) : new Value(v)).subscribe(this);
+			}
+		}
+
+		_inherits(Model, _Vertex4);
+
+		_createClass(Model, [{
+			key: 'set',
+			value: function set(key, value) {
+				if (isObject(key)) {
+					for (var i in key) {
+						this.set(i, key[i]);
+					}
+				} else if (isSignal(this[key]) && this[key].set) {
+					this[key].set(value);
+				}
+				return this;
+			}
+		}, {
+			key: 'valueOf',
+			value: function valueOf() {
+				var value = {},
+				    names = this._names,
+				    i = 0,
+				    k;
+				for (; i < names.length; i++) {
+					k = names[i];
+					value[k] = this[k].valueOf();
+				}
+				return value;
+			}
+		}]);
+
+		return Model;
+	})(Vertex);
+
+	// TODO Class & Graph
 
 	//
 	//
@@ -408,7 +476,7 @@ define(["exports"], function (exports) {
 	//
 
 	function lifted(fn) {
-		Object.defineProperty(fn, "isLifted", { value: true });
+		def(fn, 'isLifted', { value: true });
 	}
 
 	function lift0(fn) {
@@ -491,7 +559,26 @@ define(["exports"], function (exports) {
 
 	function liftN(fn) {
 		return lifted(function () {
-			return new Nexus(Array.prototype.slice.call(arguments, 0, fn.length), applyN, fn);
+			return new Nexus(slice.call(arguments, 0, fn.length), applyN, fn);
 		});
 	}
+
+	reactant.bind = bind;
+	reactant.copy = copy;
+	reactant.lift = lift;
+
+	reactant.Signal = Signal;
+	reactant.Vertex = Vertex;
+
+	reactant.Value = Value;
+	reactant.Input = Input;
+	reactant.Clone = Clone;
+	reactant.State = State;
+	reactant.Nexus = Nexus;
+	reactant.Model = Model;
+
+	reactant.UNDEFINED = UNDEFINED;
+	reactant.NULL = NULL;
+
+	module.exports = reactant;
 });

@@ -1,22 +1,24 @@
 
-'use strict';
-
 //
 //
 //
 
-export default function reactant(value) {
+function reactant(value) {
 	return isSignal(value) ? value : isFunction(value) ? lift(value) : new Value(value);
 }
 
-export function copy(value) {
+function bind(input, fn) {
+	return isArray(input) ? lift(fn).apply(null, input) : lift(fn)(input);
+}
+
+function copy(value) {
 	if (!isSignal(value)) {
 		throw new Error('reactant.copy "value" argument must be an instance of reactant.Signal');
 	}
 	return new Clone(value);
 }
 
-export function lift(fn) {
+function lift(fn) {
 	if (!isFunction(fn)) {
 		throw new Error('reactant.lift "fn" argument must be of type: "function"');
 	}
@@ -41,9 +43,15 @@ export function lift(fn) {
 	}
 }
 
-export function bind(input, fn) {
-	return isArray(input) ? lift(fn).apply(null, input) : lift(fn)(input);
-}
+//
+//
+//
+
+var keys = Object.keys;
+
+var def = Object.defineProperty;
+
+var slice = Array.prototype.slice;
 
 //
 //
@@ -51,8 +59,16 @@ export function bind(input, fn) {
 
 var isArray = Array.isArray;
 
+function isCallable(x) {
+	return x !== undefined && x !== null && typeof x.call === 'function';
+}
+
 function isFunction(x) {
 	return typeof x === 'function';
+}
+
+function isObject(x) {
+	return typeof x === 'object' && x !== null;
 }
 
 function isSignal(x) {
@@ -94,48 +110,54 @@ class Signal {
 		this._multi = false;
 	}
 
-	subscribe(target) {
-		if (!isVertex(target)) {
-			throw new Error('reactant.Signal "target" argument must be an instance of reactant.Vertex');
+	subscribe(subscriber) {
+		if (!isCallable(subscriber)) {
+			throw new Error('reactant.Signal "subscriber" must be callable');
 		}
+		var chain = this._chain;
 		if (this._multi) {
-			if (this._chain.indexOf(target) === -1) {
-				this._chain.push(target);
+			if (chain.indexOf(subscriber) === -1) {
+				chain.push(subscriber);
 			}
-		} else if (this._chain !== target) {
-			if (this._chain === null) {
-				this._chain = target;
+		} else if (chain !== subscriber) {
+			if (chain === null) {
+				this._chain = subscriber;
 			} else {
-				this._chain = [this._chain, target];
+				this._chain = [chain, subscriber];
 				this._multi = true;
 			}
 		}
+		return this;
 	}
 
-	unsubscribe(target) {
+	unsubscribe(subscriber) {
+		var chain = this._chain;
 		if (this._multi) {
-			var index = this._chain.indexOf(target);
+			var index = chain.indexOf(subscriber);
 			if (index !== -1) {
-				if (this._chain.length === 2) {
-					this._chain = this._chain[index === 0 ? 1 : 0];
+				if (chain.length === 2) {
+					this._chain = chain[index === 0 ? 1 : 0];
 					this._multi = false;
 				} else {
-					this._chain.splice(index, 1);
+					chain.splice(index, 1);
 				}
 			}
-		} else if (this._chain === target) {
+		} else if (chain === subscriber) {
 			this._chain = null;
 		}
+		return this;
 	}
 
 	propagate() {
+		var chain = this._chain;
 		if (this._multi) {
-			for (var i = 0; i < this._chain.length; i++) {
-				this._chain[i].invalidate();
+			for (var i = 0; i < chain.length; i++) {
+				chain[i].call(this);
 			}
-		} else if (this._chain !== null) {
-			this._chain.invalidate();
+		} else if (chain !== null) {
+			chain.call(this);
 		}
+		return this;
 	}
 
 }
@@ -148,8 +170,13 @@ class Vertex extends Signal {
 	}
 
 	invalidate() {
-		if (this._valid === false) {
-			this._valid = true;
+		this.call();
+		return this;
+	}
+
+	call() {
+		if (this._valid) {
+			this._valid = false;
 			this.propagate();
 		}
 	}
@@ -158,7 +185,7 @@ class Vertex extends Signal {
 		this._valid = true;
 	}
 
-	isValid() {
+	get isValid() {
 		return this._valid;
 	}
 
@@ -184,15 +211,16 @@ class Value extends Signal {
 			this._value = value;
 			this.propagate();
 		}
+		return this;
 	}
 
 }
 
-class Input extends Vertex {
+class Input extends Signal {
 
 	constructor(input) {
 		super();
-		this.valueOf = input;
+		this.valueOf = isFunction(input) ? input : function() { return input; };
 	}
 
 }
@@ -240,7 +268,7 @@ class State extends Vertex {
 
 }
 
-export class Nexus extends Vertex {
+class Nexus extends Vertex {
 
 	constructor(input, apply, xform) {
 		super();
@@ -264,6 +292,53 @@ export class Nexus extends Vertex {
 	}
 
 }
+
+class Model extends Vertex {
+
+	constructor(input, names) {
+		if (!isObject(input)) {
+			throw new Error('reactant.Model "input" must be an object');
+		}
+		if (!isArray(names)) {
+			names = keys(input);
+		}
+		super();
+		this._names = names;
+		for (var i = 0; i < names.length; i++) {
+			var k = names[i],
+				v = input[k];
+			this[name] = isFunction(v) ? v : (
+				isSignal(v) ? v : isObject(v) ? new Model(v) : new Value(v)
+			).subscribe(this);
+		}
+	}
+
+	set(key, value) {
+		if (isObject(key)) {
+			for (var i in key) {
+				this.set(i, key[i]);
+			}
+		} else if (isSignal(this[key]) && this[key].set) {
+			this[key].set(value);
+		}
+		return this;
+	}
+
+	valueOf() {
+		var value = {},
+			names = this._names,
+			i = 0,
+			k;
+		for (; i < names.length; i++) {
+			k = names[i];
+			value[k] = this[k].valueOf();
+		}
+		return value;
+	}
+
+}
+
+// TODO Class & Graph
 
 //
 //
@@ -322,7 +397,7 @@ function applyN(fn, a) {
 //
 
 function lifted(fn) {
-	Object.defineProperty(fn, 'isLifted', { value: true });
+	def(fn, 'isLifted', { value: true });
 }
 
 function lift0(fn) {
@@ -405,6 +480,25 @@ function lift12(fn) {
 
 function liftN(fn) {
 	return lifted(function() {
-		return new Nexus(Array.prototype.slice.call(arguments, 0, fn.length), applyN, fn);
+		return new Nexus(slice.call(arguments, 0, fn.length), applyN, fn);
 	});
 }
+
+reactant.bind = bind;
+reactant.copy = copy;
+reactant.lift = lift;
+
+reactant.Signal = Signal;
+reactant.Vertex = Vertex;
+
+reactant.Value = Value;
+reactant.Input = Input;
+reactant.Clone = Clone;
+reactant.State = State;
+reactant.Nexus = Nexus;
+reactant.Model = Model;
+
+reactant.UNDEFINED = UNDEFINED;
+reactant.NULL = NULL;
+
+export default reactant;
